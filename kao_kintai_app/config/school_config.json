@@ -1,0 +1,30 @@
+{
+    "school_name": "情報学科",
+    "db_path": "school_db.sqlite3",
+    "max_periods": 5,
+    "late_threshold_minutes": 15,
+    "class_times": {
+        "1": [
+            "09:00",
+            "09:45"
+        ],
+        "2": [
+            "09:00",
+            "09:45"
+        ],
+        "3": [
+            "09:00",
+            "09:45"
+        ],
+        "4": [
+            "09:00",
+            "09:45"
+        ],
+        "5": [
+            "09:00",
+            "09:45"
+        ]
+    },
+    "admin_id": "admin01",
+    "admin_password_hash": "$2b$12$hzlPPvwAUqoaELdLcIgN4ejpsKv9t2Crkk5r2Upfotxvi9xYnXk6O"
+}

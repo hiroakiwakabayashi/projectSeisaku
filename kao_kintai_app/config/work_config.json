@@ -1,0 +1,7 @@
+{
+    "store_name": "etwadfdsa",
+    "db_path": "work_db.sqlite3",
+    "time_unit": "分単位",
+    "admin_id": "manager01",
+    "admin_password_hash": "$2b$12$LF5RmTJr8iu1D378tNI7Q.YYfDonSNwf4C6gITn/U6/wH83FsnlOC"
+}

@@ -1,43 +1,35 @@
 # kao_kintai_app/main.py
-import customtkinter as ctk
+
+from gui import school_config, work_config
 import json
 import os
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config", "init_config.json")
+CONFIG_PATH = "config/init_config.json"
 
-class InitialSettingApp(ctk.CTk):
-    def __init__(self):
-        super().__init__()
+def save_mode(mode):
+    os.makedirs("config", exist_ok=True)
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump({"mode": mode}, f, indent=4)
+    print(f"✅ 選択されたモード「{mode}」を保存しました。")
 
-        self.title("初期設定 - 顔認証勤怠アプリ")
-        self.geometry("400x300")
-
-        self.label = ctk.CTkLabel(self, text="アプリの用途を選んでください", font=("Arial", 18))
-        self.label.pack(pady=20)
-
-        self.usage_var = ctk.StringVar(value="学校用")
-        self.radio_school = ctk.CTkRadioButton(self, text="学校用", variable=self.usage_var, value="学校用")
-        self.radio_work = ctk.CTkRadioButton(self, text="勤怠用", variable=self.usage_var, value="勤怠用")
-        self.radio_school.pack(pady=5)
-        self.radio_work.pack(pady=5)
-
-        self.confirm_button = ctk.CTkButton(self, text="決定", command=self.confirm_selection)
-        self.confirm_button.pack(pady=30)
-
-    def confirm_selection(self):
-        selected_mode = self.usage_var.get()
-
-        config_data = {
-            "mode": selected_mode
-        }
-
-        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(config_data, f, ensure_ascii=False, indent=4)
-
-        print(f"✅ 選択されたモード「{selected_mode}」を {CONFIG_PATH} に保存しました。")
-        self.destroy()
+    if mode == "学校用":
+        school_config.run()
+    elif mode == "勤怠用":
+        work_config.run()
 
 if __name__ == "__main__":
-    app = InitialSettingApp()
+    import customtkinter as ctk
+    app = ctk.CTk()
+    app.title("モード選択")
+    app.geometry("400x300")
+
+    label = ctk.CTkLabel(app, text="どちらのモードで開始しますか？", font=("Arial", 18))
+    label.pack(pady=40)
+
+    btn_school = ctk.CTkButton(app, text="学校用（出席）", command=lambda: save_mode("学校用"))
+    btn_school.pack(pady=10)
+
+    btn_work = ctk.CTkButton(app, text="勤怠用（労働）", command=lambda: save_mode("勤怠用"))
+    btn_work.pack(pady=10)
+
     app.mainloop()
