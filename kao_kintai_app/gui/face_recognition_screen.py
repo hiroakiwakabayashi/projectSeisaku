@@ -33,16 +33,19 @@ def recognize_face_from_frame(frame):
                 known_ids.append(os.path.splitext(filename)[0])
 
     for encoding in face_encodings:
-        matches = face_recognition.compare_faces(known_encodings, encoding)
-        if True in matches:
-            idx = matches.index(True)
-            return known_ids[idx]
+        if not known_encodings:
+            return None
+        distances = face_recognition.face_distance(known_encodings, encoding)
+        best_idx = np.argmin(distances)
+        if distances[best_idx] < 0.45:  # ← しきい値（小さいほど厳密）
+            return known_ids[best_idx]
     return None
+
 
 def run(mode="学校用"):
     app = ctk.CTk()
     app.title(f"顔認証（{mode}）")
-    app.geometry("700x620")
+    app.geometry("720x700")
 
     video_label = ctk.CTkLabel(app, text="")
     video_label.pack(pady=10)
@@ -53,9 +56,10 @@ def run(mode="学校用"):
     cap = cv2.VideoCapture(0)
     app.ctk_img_ref = None
     failed_frame = None
+    recognized_id = None
 
     entry_frame = ctk.CTkFrame(app)
-    entry_label = ctk.CTkLabel(entry_frame, text="学籍番号（または社員番号）を入力してください：")
+    entry_label = ctk.CTkLabel(entry_frame, text="学籍番号（社員番号）を入力：")
     entry_input = ctk.CTkEntry(entry_frame, width=200)
     entry_submit = ctk.CTkButton(entry_frame, text="登録", command=lambda: submit_unrecognized())
 
@@ -80,7 +84,41 @@ def run(mode="学校用"):
             app.ctk_img_ref = ctk_img
         video_label.after(30, update_frame)
 
-    def handle_action(action):
+    # ====================
+    # 勤怠用モード専用UI
+    # ====================
+    action_var = ctk.StringVar(value="出勤")
+    action_frame = ctk.CTkFrame(app)
+    action_label = ctk.CTkLabel(action_frame, text="")
+    action_buttons = []
+
+    def show_action_selection(user_id):
+        action_label.configure(text=f"✅ {user_id} さんとして認識しました。操作を選択してください。")
+        action_label.pack(pady=5)
+        options = ["出勤", "退勤", "休憩開始", "休憩終了"]
+        for action in options:
+            btn = ctk.CTkRadioButton(action_frame, text=action, variable=action_var, value=action)
+            btn.pack(anchor="w", padx=30)
+            action_buttons.append(btn)
+        ctk.CTkButton(action_frame, text="実行", command=execute_action).pack(pady=10)
+        action_frame.pack(pady=10)
+
+    def hide_action_selection():
+        for widget in action_frame.winfo_children():
+            widget.destroy()
+        action_frame.pack_forget()
+
+    def execute_action():
+        action = action_var.get()
+        user_id = recognized_id
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        result_label.configure(text=f"✅ {user_id} が「{action}」しました（{timestamp}）")
+        hide_action_selection()
+
+    # ====================
+    # モード別処理
+    # ====================
+    def handle_school_action(action):
         nonlocal failed_frame
         hide_entry_ui()
         ret, frame = cap.read()
@@ -91,7 +129,25 @@ def run(mode="学校用"):
         user_id = recognize_face_from_frame(frame)
         if user_id:
             timestamp = datetime.now().strftime("%H:%M:%S")
-            result_label.configure(text=f"✅ {user_id} が「{action}」しました（{timestamp}）")
+            result_label.configure(text=f"✅ {user_id} が {action} しました（{timestamp}）")
+        else:
+            result_label.configure(text="❌ 顔認証失敗：IDを入力してください")
+            failed_frame = frame.copy()
+            show_entry_ui()
+
+    def handle_work_face_capture():
+        nonlocal recognized_id, failed_frame
+        hide_entry_ui()
+        hide_action_selection()
+        ret, frame = cap.read()
+        if not ret:
+            result_label.configure(text="📷 カメラ取得失敗")
+            return
+
+        user_id = recognize_face_from_frame(frame)
+        if user_id:
+            recognized_id = user_id
+            show_action_selection(user_id)
         else:
             result_label.configure(text="❌ 顔認証失敗：IDを入力してください")
             failed_frame = frame.copy()
@@ -107,41 +163,39 @@ def run(mode="学校用"):
         else:
             result_label.configure(text="⚠ 入力がありません")
 
-    def open_menu():
-        menu_win = ctk.CTkToplevel(app)
-        menu_win.title("メニュー")
-        menu_win.geometry("250x150")
-        menu_win.attributes("-topmost", True)
+    # ====================
+    # 常時表示メニューボタン
+    # ====================
+    def open_user():
+        script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "user_main.py"))
+        subprocess.Popen([sys.executable, script_path])
 
-        def open_user():
-            script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "user_main.py"))
-            subprocess.Popen([sys.executable, script_path])
+    def open_admin():
+        from gui import admin_login
+        app.destroy()
+        admin_login.run()
 
-        def open_admin():
-            script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "admin_main_menu.py"))
-            subprocess.Popen([sys.executable, script_path])
-
-        ctk.CTkLabel(menu_win, text="画面遷移メニュー").pack(pady=10)
-        ctk.CTkButton(menu_win, text="利用者画面", command=open_user).pack(pady=5)
-        ctk.CTkButton(menu_win, text="管理者画面", command=open_admin).pack(pady=5)
-
+    # ====================
+    # UI配置
+    # ====================
     btn_frame = ctk.CTkFrame(app)
     btn_frame.pack(pady=10)
 
-    if mode == "勤怠用":
-        ctk.CTkButton(btn_frame, text="出勤", width=120, command=lambda: handle_action("出勤")).grid(row=0, column=0, padx=5)
-        ctk.CTkButton(btn_frame, text="退勤", width=120, command=lambda: handle_action("退勤")).grid(row=0, column=1, padx=5)
-        ctk.CTkButton(btn_frame, text="休憩開始", width=120, command=lambda: handle_action("休憩開始")).grid(row=1, column=0, padx=5, pady=5)
-        ctk.CTkButton(btn_frame, text="休憩終了", width=120, command=lambda: handle_action("休憩終了")).grid(row=1, column=1, padx=5, pady=5)
+    if mode == "学校用":
+        ctk.CTkButton(btn_frame, text="出席", width=120, command=lambda: handle_school_action("出席")).grid(row=0, column=0, padx=10)
+        ctk.CTkButton(btn_frame, text="退出", width=120, command=lambda: handle_school_action("退出")).grid(row=0, column=1, padx=10)
     else:
-        ctk.CTkButton(btn_frame, text="出席", width=120, command=lambda: handle_action("出席")).grid(row=0, column=0, padx=10)
-        ctk.CTkButton(btn_frame, text="退出", width=120, command=lambda: handle_action("退出")).grid(row=0, column=1, padx=10)
+        ctk.CTkButton(btn_frame, text="顔を撮影する", command=handle_work_face_capture).pack()
 
-    btn_menu = ctk.CTkButton(app, text="≡ メニュー", width=80, command=open_menu)
-    btn_menu.pack(pady=5)
+    # ナビゲーションボタン（常時表示）
+    nav_frame = ctk.CTkFrame(app)
+    nav_frame.pack(pady=10)
+    ctk.CTkButton(nav_frame, text="利用者画面", width=150, command=open_user).grid(row=0, column=0, padx=10)
+    ctk.CTkButton(nav_frame, text="管理者画面", width=150, command=open_admin).grid(row=0, column=1, padx=10)
 
+    # 終了ボタン
     btn_exit = ctk.CTkButton(app, text="終了", fg_color="gray", command=lambda: [cap.release(), app.destroy()])
-    btn_exit.pack(pady=5)
+    btn_exit.pack(pady=10)
 
     update_frame()
     app.mainloop()
