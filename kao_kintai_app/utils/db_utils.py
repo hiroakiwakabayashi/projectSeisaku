@@ -2,7 +2,7 @@ import os
 import json
 
 def load_db_path():
-    base_dir = os.path.dirname(os.path.dirname(__file__))  # プロジェクトのルートディレクトリ
+    base_dir = os.path.dirname(os.path.dirname(__file__))
     school_config = os.path.join(base_dir, "config", "school_config.json")
     work_config = os.path.join(base_dir, "config", "work_config.json")
 

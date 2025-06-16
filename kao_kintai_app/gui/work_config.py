@@ -1,93 +1,54 @@
-# kao_kintai_app/gui/work_config.py
-
 import customtkinter as ctk
+import tkinter as tk
+from tkinter import ttk
+import sqlite3
 import os
-import json
 import sys
-import bcrypt
-import subprocess
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from db import work_db_initializer
-
-
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/work_config.json")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from utils.db_utils import load_db_path
 
 def run():
     app = ctk.CTk()
-    app.title("勤怠モード - 詳細設定")
-    app.geometry("500x600")
+    app.title("勤怠履歴ビューア")
+    app.geometry("700x500")
 
-    # 店舗名
-    label_store = ctk.CTkLabel(app, text="店舗・事業所名", font=("Arial", 14))
-    label_store.pack(pady=(20, 5))
-    entry_store = ctk.CTkEntry(app, width=300)
-    entry_store.pack()
+    label = ctk.CTkLabel(app, text="📋 勤怠履歴一覧", font=("Arial", 18))
+    label.pack(pady=10)
 
-    # DBファイル名
-    label_db = ctk.CTkLabel(app, text="データベースファイル名", font=("Arial", 14))
-    label_db.pack(pady=(20, 5))
-    entry_db = ctk.CTkEntry(app, width=300)
-    entry_db.insert(0, "work_db.sqlite3")
-    entry_db.pack()
+    frame = ctk.CTkFrame(app)
+    frame.pack(pady=10, fill="both", expand=True)
 
-    # 勤務時間単位
-    label_unit = ctk.CTkLabel(app, text="勤務時間の単位", font=("Arial", 14))
-    label_unit.pack(pady=(20, 5))
-    time_unit_var = ctk.StringVar(value="分単位")
-    unit_option = ctk.CTkOptionMenu(app, values=["分単位", "時:分形式"], variable=time_unit_var)
-    unit_option.pack()
+    tree = ttk.Treeview(frame, columns=("user_id", "action", "timestamp"), show="headings")
+    tree.heading("user_id", text="社員番号")
+    tree.heading("action", text="アクション")
+    tree.heading("timestamp", text="日時")
+    tree.column("user_id", width=100)
+    tree.column("action", width=100)
+    tree.column("timestamp", width=200)
+    tree.pack(fill="both", expand=True)
 
-    # 管理者ID・パスワード
-    label_admin_id = ctk.CTkLabel(app, text="管理者ID", font=("Arial", 14))
-    label_admin_id.pack(pady=(20, 5))
-    entry_admin_id = ctk.CTkEntry(app, width=200)
-    entry_admin_id.insert(0, "manager01")
-    entry_admin_id.pack()
+    # スクロールバー
+    scrollbar = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=scrollbar.set)
+    scrollbar.pack(side="right", fill="y")
 
-    label_admin_pass = ctk.CTkLabel(app, text="管理者パスワード", font=("Arial", 14))
-    label_admin_pass.pack(pady=(10, 5))
-    entry_admin_pass = ctk.CTkEntry(app, width=200, show="*")
-    entry_admin_pass.pack()
+    # データベースから読み込み
+    def load_data():
+        db_path = load_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, action, timestamp FROM attendance ORDER BY timestamp DESC")
+        rows = cursor.fetchall()
+        for row in rows:
+            tree.insert("", "end", values=row)
+        conn.close()
 
-    # 保存ボタン
-    def save_config():
-        store_name = entry_store.get()
-        db_path = entry_db.get()
-        time_unit = time_unit_var.get()
+    load_data()
 
-        admin_id = entry_admin_id.get()
-        admin_pass = entry_admin_pass.get()
-
-        if not admin_id or not admin_pass:
-            print("⚠ 管理者ID または パスワードが未入力です")
-            return
-
-        hashed_pass = bcrypt.hashpw(admin_pass.encode(), bcrypt.gensalt()).decode()
-
-        config = {
-            "store_name": store_name,
-            "db_path": db_path,
-            "time_unit": time_unit,
-            "admin_id": admin_id,
-            "admin_password_hash": hashed_pass
-        }
-
-        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=4)
-
-        print("✅ 勤務モード設定を保存 & DB初期化")
-        work_db_initializer.init_work_db(db_path)
-        app.destroy()
-
-
-        script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "face_recognition_screen.py"))
-        subprocess.Popen([sys.executable, script_path, "勤怠用"])
-
-
-
-    save_btn = ctk.CTkButton(app, text="保存して完了", command=save_config)
-    save_btn.pack(pady=40)
+    ctk.CTkButton(app, text="閉じる", command=app.destroy).pack(pady=10)
 
     app.mainloop()
+
+if __name__ == "__main__":
+    run()
